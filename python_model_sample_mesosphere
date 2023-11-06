@@ -1,0 +1,99 @@
+# atm_sampler.py
+# modelling for Centaurus high school pysics club
+# mesosphere sampler project
+
+
+# get atmospheric model from the Ambiance package
+# issue this command in bash console to import
+# pip3.10 install --user ambiance
+# https://ambiance.readthedocs.io/en/latest/
+from ambiance import Atmosphere, CONST
+
+# get package for compressible flow gas dynamics
+# https://pygasflow.readthedocs.io/en/latest/index.html
+from pygasflow import isentropic, shockwave
+from math import pi
+
+# np.set_printoptions(precision=2)
+
+# constants
+MW_N2 = 28 # g/mol
+R = CONST.R_star # universal gas constant
+
+# atmospheric conditions
+altitude = 60000 # m
+
+# vehicle conditions
+M = 2.0 # Mach number
+
+# sampler geometry
+V_bottle = 50*1e-6 # m^3 (100 mL)
+D_intake = 6.5e-3 # m
+A_intake = pi/4*D_intake**2 # m^2
+# sample time
+sampleTime = 260 # seconds
+
+# get conditions from the Atmosphere object at sea level
+# note that ambiance returns values as NumPy Array objects
+# these don't work well with f-format strings, so for printing
+# we need to convert these to floats
+seaLevel = Atmosphere(0)
+print('conditions at sea level:')
+print(f'pressure:{float(seaLevel.pressure):.2f} Pa')
+print(f'temperature: {float(seaLevel.temperature):.2f} K')
+print(f'density:{float(seaLevel.density):.2f} kg/m^3\n')
+
+# required mass
+mTarget = float(seaLevel.density)*V_bottle
+print(f'Target mass: {float(mTarget*1000):.2f} g\n')
+
+# get conditions from the Atmosphere object at our sampling altitude
+sampleHeight = Atmosphere(altitude)
+
+# convert np.Arrays to floats to make printing better
+P = float(sampleHeight.pressure)
+T = float(sampleHeight.temperature)
+rho = float(sampleHeight.density)
+mfp = float(sampleHeight.mean_free_path)
+soundSpeed = float(sampleHeight.speed_of_sound)
+
+print(f'conditions at sample height of {altitude/1000} km:')
+print(f' pressure:{P:.2f} Pa')
+print(f' temperature: {T:.2f} K')
+print(f' density: {rho:.2e} kg/m^3')
+print(f' mean free path: {mfp:.2e} m')
+print(f' speed of sound: {soundSpeed:.2e} m/s')
+print()
+
+
+# find actual volume required at altitude
+V_actual = mTarget/rho
+print(f'Volume of air to be sampled: {float(V_actual):.2f} m^3')
+
+Vdot = V_actual/sampleTime # m^3/s needed of air
+Vdot_LPM = Vdot*60*1000 # liters/min needed of air
+
+Vel_intake = Vdot/A_intake #required air speed in intake
+
+Dynamic_pressure = 1/2*rho*Vel_intake**2
+print(f'Dynamic pressure: {Dynamic_pressure:.2f} Pa')
+print(f'Vdot: {Vdot:.2e}, Vdot_LPM: {Vdot_LPM:.2f}')
+print(f'Required intake velocity: {Vel_intake:.2f} m/s')
+
+# get conditions across normal shock
+
+# stagnation pressure ratio behind shock
+stagnation_P_ratio = shockwave.rayleigh_pitot_formula(M)
+print(f'Stagnation pressure ratio p02/p1: {stagnation_P_ratio:.2f}, stagnation pressure {stagnation_P_ratio*P:.2f} Pa')
+
+# stagnation temperature ratio
+TO_over_T = 1.0/isentropic.temperature_ratio(M)
+T0 = TO_over_T*T # stagnation tempeature in K
+T0_C = T0 - 273.15
+print(f'TO2/T2:{TO_over_T:.2f}, temperature behind shock:{T*TO_over_T:.2f} K ({T0_C:.2f} °C)')
+
+# vehicle speed in various units
+v = M*soundSpeed # m/s
+v_km_hr = v/1000*3600 # km/hr
+v_mph = v/0.0254/12/5280*3600
+print(f'vehicle speed: {v:.2f} m/s, {v_km_hr:.2f} km/hr, {v_mph:.2f} mph')
